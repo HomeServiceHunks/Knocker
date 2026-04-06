@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knocker Admin — Hunks</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+:root{--green:#00e676;--orange:#f26522;--red:#ff1744;--yellow:#ffd600;--surf:#141414;--bdr:#222;--muted:#555}
+
+/* LOGIN */
+#login-screen{display:flex;flex-direction:column;justify-content:center;align-items:center;flex:1;gap:16px;padding:40px;background:linear-gradient(160deg,#1a1f5e,#0a0a0a)}
+.login-box{background:#141414;border:1px solid #222;border-radius:16px;padding:32px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px}
+.login-title{font-size:24px;font-weight:800;color:var(--green)}
+.login-sub{font-size:12px;color:var(--muted)}
+.login-input{background:#0a0a0a;border:1px solid #333;border-radius:8px;padding:12px 14px;color:#f0f0f0;font-size:16px;outline:none;width:100%}
+.login-input:focus{border-color:var(--green)}
+.login-btn{padding:14px;background:var(--green);border:none;border-radius:8px;color:#000;font-size:16px;font-weight:800;cursor:pointer}
+.login-err{font-size:12px;color:#ff6b6b;text-align:center;min-height:18px}
+
+/* APP */
+#app{display:none;flex:1;flex-direction:column;overflow:hidden}
+.top-bar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#141414;border-bottom:1px solid #222;flex-shrink:0;flex-wrap:wrap}
+.top-title{font-size:18px;font-weight:800;color:var(--green);margin-right:auto}
+.filter-group{display:flex;align-items:center;gap:8px}
+.filter-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;white-space:nowrap}
+.filter-select,.filter-input{background:#0a0a0a;border:1px solid #333;border-radius:6px;padding:6px 10px;color:#f0f0f0;font-size:12px;outline:none;cursor:pointer}
+.filter-select:focus,.filter-input:focus{border-color:var(--green)}
+.filter-btn{padding:6px 14px;background:none;border:1px solid #333;border-radius:6px;color:var(--muted);font-size:12px;cursor:pointer;white-space:nowrap}
+.filter-btn.active{border-color:var(--green);color:var(--green)}
+.filter-btn:hover{border-color:#555;color:#f0f0f0}
+.refresh-btn{padding:6px 14px;background:var(--green);border:none;border-radius:6px;color:#000;font-size:12px;font-weight:700;cursor:pointer}
+
+/* STATS BAR */
+.stats-bar{display:flex;gap:0;border-bottom:1px solid #222;flex-shrink:0;background:#0f0f0f}
+.stat-pill{flex:1;padding:10px 16px;text-align:center;border-right:1px solid #222}
+.stat-pill:last-child{border-right:none}
+.stat-num{font-size:22px;font-weight:800;line-height:1}
+.stat-num.green{color:var(--green)}.stat-num.red{color:var(--red)}.stat-num.yellow{color:var(--yellow)}.stat-num.orange{color:var(--orange)}
+.stat-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:2px}
+
+/* MAIN LAYOUT */
+.main{display:flex;flex:1;overflow:hidden}
+#map{flex:1;height:100%;z-index:1}
+
+/* SIDEBAR */
+.sidebar{width:280px;background:#141414;border-left:1px solid #222;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sidebar-section{padding:12px 14px;border-bottom:1px solid #222}
+.sidebar-title{font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px}
+
+/* LIVE REPS */
+.rep-card{background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:10px 12px;margin-bottom:8px}
+.rep-card.active{border-color:#00e67655}
+.rep-name{font-size:14px;font-weight:700;color:#f0f0f0}
+.rep-meta{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5}
+.rep-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.rep-dot.active{background:var(--green)}
+.rep-dot.offline{background:var(--muted)}
+
+/* TOP STREETS */
+.street-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1a1a1a}
+.street-row:last-child{border-bottom:none}
+.street-name{font-size:12px;color:#f0f0f0}
+.street-conv{font-size:12px;font-weight:700}
+.street-conv.good{color:var(--green)}.street-conv.mid{color:var(--yellow)}.street-conv.bad{color:var(--red)}
+
+/* LEGEND */
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.legend-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.legend-lbl{font-size:11px;color:var(--muted)}
+
+/* LOADING */
+#loading-overlay{position:fixed;inset:0;background:rgba(10,10,10,0.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:12px}
+.loading-spinner{width:40px;height:40px;border:3px solid #222;border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:var(--muted)}
+
+/* Leaflet overrides for dark */
+.leaflet-container{background:#1a1a1a}
+.leaflet-popup-content-wrapper{background:#141414;border:1px solid #333;color:#f0f0f0;border-radius:8px}
+.leaflet-popup-tip{background:#141414}
+.leaflet-popup-content{margin:10px 14px;font-size:12px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div id="loading-overlay" style="display:none">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loading-text">Loading knock data...</div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-title">🏠 Knocker Admin</div>
+    <div class="login-sub">Hunks Window Cleaning — Admin only</div>
+    <input class="login-input" type="password" inputmode="numeric" id="admin-pin" placeholder="Admin PIN" maxlength="4">
+    <button class="login-btn" id="admin-login-btn">Access Dashboard</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- TOP BAR FILTERS -->
+  <div class="top-bar">
+    <div class="top-title">📍 Knocker Heat Map</div>
+    <div class="filter-group">
+      <div class="filter-label">Rep</div>
+      <select class="filter-select" id="filter-rep"><option value="">All Reps</option></select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Zone</div>
+      <select class="filter-select" id="filter-zone"><option value="">All Zones</option></select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">From</div>
+      <input class="filter-input" type="date" id="filter-from" style="width:130px">
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">To</div>
+      <input class="filter-input" type="date" id="filter-to" style="width:130px">
+    </div>
+    <div class="filter-group">
+      <button class="filter-btn active" id="view-all">All</button>
+      <button class="filter-btn" id="view-yes">✅ Yes</button>
+      <button class="filter-btn" id="view-no">🚫 No</button>
+      <button class="filter-btn" id="view-heat">🔥 Heat</button>
+    </div>
+    <button class="refresh-btn" id="refresh-btn">↻ Refresh</button>
+  </div>
+
+  <!-- STATS BAR -->
+  <div class="stats-bar">
+    <div class="stat-pill"><div class="stat-num" id="s-total">0</div><div class="stat-lbl">Total Doors</div></div>
+    <div class="stat-pill"><div class="stat-num green" id="s-yes">0</div><div class="stat-lbl">Yes</div></div>
+    <div class="stat-pill"><div class="stat-num red" id="s-no">0</div><div class="stat-lbl">No</div></div>
+    <div class="stat-pill"><div class="stat-num green" id="s-conv">—</div><div class="stat-lbl">Conv%</div></div>
+    <div class="stat-pill"><div class="stat-num orange" id="s-rev">$0</div><div class="stat-lbl">Est. Revenue</div></div>
+  </div>
+
+  <div class="main">
+    <div id="map"></div>
+    <div class="sidebar">
+      <!-- LIVE REPS -->
+      <div class="sidebar-section">
+        <div class="sidebar-title">🟢 Live Reps</div>
+        <div id="live-reps"><div style="font-size:12px;color:var(--muted)">Loading...</div></div>
+      </div>
+      <!-- TOP CONVERTING STREETS -->
+      <div class="sidebar-section" style="flex:1;overflow-y:auto">
+        <div class="sidebar-title">📊 Top Streets (Conv%)</div>
+        <div id="top-streets"><div style="font-size:12px;color:var(--muted)">Load data to see</div></div>
+      </div>
+      <!-- LEGEND -->
+      <div class="sidebar-section">
+        <div class="sidebar-title">Legend</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#00e676"></div><div class="legend-lbl">Yes (close)</div></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#ff1744"></div><div class="legend-lbl">No</div></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#ffd600"></div><div class="legend-lbl">Maybe</div></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#555"></div><div class="legend-lbl">No Answer</div></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#ff9100;border:2px solid #fff"></div><div class="legend-lbl">Rep (live)</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var SCRIPT_URL='https://script.google.com/macros/s/AKfycbz3neTHVAeVxu8V6i5fVEvd__rMkZ2Z0d8QUpoeSjlesHBOdweu_JiqzTsq8_GY_0VP/exec';
+var ADMIN_PIN='9999';
+var adminPin='';
+var map=null;
+var allKnocks=[];
+var markersLayer=null;
+var heatLayer=null;
+var repMarkers={};
+var currentView='all';
+var repPingInterval=null;
+
+// LOGIN
+document.getElementById('admin-login-btn').addEventListener('click',doAdminLogin);
+document.getElementById('admin-pin').addEventListener('keydown',function(e){if(e.key==='Enter')doAdminLogin();});
+function doAdminLogin(){
+  var pin=document.getElementById('admin-pin').value.trim();
+  if(pin!==ADMIN_PIN){document.getElementById('login-err').textContent='Incorrect PIN.';return;}
+  adminPin=pin;
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  document.getElementById('app').style.flexDirection='column';
+  initMap();
+  setDefaultDates();
+  loadData();
+  startRepPing();
+}
+
+function setDefaultDates(){
+  var today=new Date();
+  var from=new Date(today);from.setDate(today.getDate()-30);
+  document.getElementById('filter-to').value=today.toLocaleDateString('en-CA');
+  document.getElementById('filter-from').value=from.toLocaleDateString('en-CA');
+}
+
+function initMap(){
+  map=L.map('map',{center:[44.3894,-79.6903],zoom:12,zoomControl:true});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+    attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19
+  }).addTo(map);
+  markersLayer=L.layerGroup().addTo(map);
+}
+
+function showLoading(txt){
+  document.getElementById('loading-overlay').style.display='flex';
+  document.getElementById('loading-text').textContent=txt||'Loading...';
+}
+function hideLoading(){document.getElementById('loading-overlay').style.display='none';}
+
+function loadData(){
+  showLoading('Fetching knock data from sheet...');
+  var rep=document.getElementById('filter-rep').value;
+  var zone=document.getElementById('filter-zone').value;
+  var from=document.getElementById('filter-from').value;
+  var to=document.getElementById('filter-to').value;
+  var url=SCRIPT_URL+'?action=getKnockData&pin='+adminPin;
+  if(rep)url+='&rep='+encodeURIComponent(rep);
+  if(zone)url+='&zone='+encodeURIComponent(zone);
+  if(from)url+='&from='+from;
+  if(to)url+='&to='+to;
+  fetch(url)
+    .then(function(r){return r.json();})
+    .then(function(d){
+      hideLoading();
+      if(d.status!=='ok'){alert('Error: '+d.message);return;}
+      allKnocks=d.knocks||[];
+      populateFilters();
+      renderMap();
+      updateStats();
+      renderTopStreets();
+    })
+    .catch(function(err){hideLoading();alert('Failed to load data. Check connection.\n'+err);});
+}
+
+function populateFilters(){
+  var reps={},zones={};
+  allKnocks.forEach(function(k){if(k.rep)reps[k.rep]=1;if(k.zone)zones[k.zone]=1;});
+  var repSel=document.getElementById('filter-rep');
+  var curRep=repSel.value;
+  repSel.innerHTML='<option value="">All Reps</option>';
+  Object.keys(reps).sort().forEach(function(r){repSel.innerHTML+='<option value="'+r+'"'+(r===curRep?' selected':'')+'>'+r+'</option>';});
+  var zoneSel=document.getElementById('filter-zone');
+  var curZone=zoneSel.value;
+  zoneSel.innerHTML='<option value="">All Zones</option>';
+  Object.keys(zones).sort().forEach(function(z){zoneSel.innerHTML+='<option value="'+z+'"'+(z===curZone?' selected':'')+'>'+z+'</option>';});
+}
+
+function getColor(result){
+  if(result==='Yes')return '#00e676';
+  if(result==='No')return '#ff1744';
+  if(result==='Maybe')return '#ffd600';
+  return '#555555';
+}
+
+function renderMap(){
+  markersLayer.clearLayers();
+  if(heatLayer){map.removeLayer(heatLayer);heatLayer=null;}
+  var visible=filterKnocks();
+  if(currentView==='heat'){
+    // Heat layer — weight by result
+    var heatPoints=visible.map(function(k){
+      var w=k.result==='Yes'?1.0:k.result==='Maybe'?0.4:0.1;
+      return[k.lat,k.lng,w];
+    });
+    heatLayer=L.heatLayer(heatPoints,{radius:25,blur:20,maxZoom:17,
+      gradient:{0.1:'#1a0505',0.3:'#ff1744',0.6:'#ffd600',1.0:'#00e676'}
+    }).addTo(map);
+  }else{
+    visible.forEach(function(k){
+      var col=getColor(k.result);
+      var circle=L.circleMarker([k.lat,k.lng],{
+        radius:7,fillColor:col,color:'#000',weight:1,opacity:0.9,fillOpacity:0.85
+      });
+      circle.bindPopup(
+        '<b>'+k.result+'</b><br>'+
+        '<span style="color:#aaa">Rep:</span> '+k.rep+'<br>'+
+        '<span style="color:#aaa">Street:</span> '+(k.street||'—')+'<br>'+
+        '<span style="color:#aaa">Zone:</span> '+(k.zone||'—')+'<br>'+
+        '<span style="color:#aaa">Date:</span> '+k.date+' '+k.time
+      );
+      markersLayer.addLayer(circle);
+    });
+  }
+  // Fit map to data if we have points
+  if(visible.length>0){
+    var lats=visible.map(function(k){return k.lat;});
+    var lngs=visible.map(function(k){return k.lng;});
+    var bounds=[[Math.min.apply(null,lats)-0.01,Math.min.apply(null,lngs)-0.01],[Math.max.apply(null,lats)+0.01,Math.max.apply(null,lngs)+0.01]];
+    map.fitBounds(bounds,{padding:[20,20]});
+  }
+}
+
+function filterKnocks(){
+  return allKnocks.filter(function(k){
+    if(currentView==='yes')return k.result==='Yes';
+    if(currentView==='no')return k.result==='No';
+    return true;
+  });
+}
+
+function updateStats(){
+  var visible=filterKnocks();
+  var yes=visible.filter(function(k){return k.result==='Yes';}).length;
+  var no=visible.filter(function(k){return k.result==='No';}).length;
+  var convos=yes+no;
+  var conv=convos>0?((yes/convos)*100).toFixed(1)+'%':'—';
+  document.getElementById('s-total').textContent=visible.length.toLocaleString();
+  document.getElementById('s-yes').textContent=yes;
+  document.getElementById('s-no').textContent=no;
+  document.getElementById('s-conv').textContent=conv;
+  document.getElementById('s-rev').textContent='$'+(yes*350).toLocaleString();
+}
+
+function renderTopStreets(){
+  var streetStats={};
+  allKnocks.forEach(function(k){
+    if(!k.street)return;
+    if(!streetStats[k.street])streetStats[k.street]={yes:0,no:0,total:0};
+    streetStats[k.street].total++;
+    if(k.result==='Yes')streetStats[k.street].yes++;
+    if(k.result==='No')streetStats[k.street].no++;
+  });
+  var streets=Object.keys(streetStats).map(function(s){
+    var st=streetStats[s];
+    var convos=st.yes+st.no;
+    return{name:s,conv:convos>0?(st.yes/convos*100):0,yes:st.yes,total:st.total};
+  }).filter(function(s){return s.total>=2;});
+  streets.sort(function(a,b){return b.conv-a.conv;});
+  var top=streets.slice(0,15);
+  var el=document.getElementById('top-streets');
+  if(!top.length){el.innerHTML='<div style="font-size:12px;color:var(--muted)">No street data yet</div>';return;}
+  el.innerHTML=top.map(function(s){
+    var cls=s.conv>=6.5?'good':s.conv>=2.5?'mid':'bad';
+    return '<div class="street-row"><div><div class="street-name">'+s.name+'</div><div style="font-size:10px;color:var(--muted)">'+s.yes+' yes / '+s.total+' doors</div></div><div class="street-conv '+cls+'">'+s.conv.toFixed(1)+'%</div></div>';
+  }).join('');
+}
+
+// VIEW TOGGLE
+['all','yes','no','heat'].forEach(function(v){
+  document.getElementById('view-'+v).addEventListener('click',function(){
+    currentView=v;
+    document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
+    this.classList.add('active');
+    renderMap();updateStats();
+  });
+});
+
+// FILTERS
+document.getElementById('refresh-btn').addEventListener('click',loadData);
+['filter-rep','filter-zone','filter-from','filter-to'].forEach(function(id){
+  document.getElementById(id).addEventListener('change',loadData);
+});
+
+// LIVE REP TRACKING
+function startRepPing(){
+  loadRepLocations();
+  repPingInterval=setInterval(loadRepLocations,30000); // check every 30s for admin view
+}
+function loadRepLocations(){
+  fetch(SCRIPT_URL+'?action=getRepLocations&pin='+adminPin)
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.status!=='ok')return;
+      renderRepPins(d.reps||[]);
+      renderLiveReps(d.reps||[]);
+    })
+    .catch(function(){});
+}
+
+var repIcon=L.divIcon({className:'',html:'<div style="width:18px;height:18px;border-radius:50%;background:#ff9100;border:3px solid #fff;box-shadow:0 0 8px rgba(255,145,0,0.8)"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+
+function renderRepPins(reps){
+  // Remove old rep markers
+  Object.keys(repMarkers).forEach(function(r){map.removeLayer(repMarkers[r]);});
+  repMarkers={};
+  reps.forEach(function(rep){
+    if(!rep.lat||rep.lat===0||rep.status==='offline')return;
+    var now=new Date();
+    var updated=new Date(rep.updated);
+    var minsAgo=Math.round((now-updated)/60000);
+    if(minsAgo>30)return; // don't show stale locations
+    var marker=L.marker([rep.lat,rep.lng],{icon:repIcon,zIndexOffset:1000});
+    marker.bindPopup('<b>'+rep.rep+'</b><br><span style="color:#aaa">Zone:</span> '+(rep.zone||'—')+'<br><span style="color:#aaa">Updated:</span> '+minsAgo+'m ago');
+    marker.addTo(map);
+    repMarkers[rep.rep]=marker;
+  });
+}
+
+function renderLiveReps(reps){
+  var el=document.getElementById('live-reps');
+  if(!reps.length){el.innerHTML='<div style="font-size:12px;color:var(--muted)">No reps active</div>';return;}
+  var now=new Date();
+  el.innerHTML=reps.map(function(rep){
+    var updated=new Date(rep.updated);
+    var minsAgo=Math.round((now-updated)/60000);
+    var isActive=rep.status==='active'&&minsAgo<=10;
+    return '<div class="rep-card'+(isActive?' active':'')+'">'+
+      '<div class="rep-name"><span class="rep-dot '+(isActive?'active':'offline')+'"></span>'+rep.rep+'</div>'+
+      '<div class="rep-meta">'+(rep.zone||'No zone set')+'<br>'+(isActive?'Active · '+minsAgo+'m ago':'Last seen '+minsAgo+'m ago')+'</div>'+
+      '</div>';
+  }).join('');
+}
+</script>
+</body>
+</html>
